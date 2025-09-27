@@ -110,6 +110,8 @@ function Container:Listbox(name, options, callback)
 	return MakeElement(self.TabRef, self.Ref, name)
 end
 
+function Container:Keypicker(name, empty) end
+
 -- ============= Tab Object =============
 local Tab = {}
 Tab.__index = Tab
