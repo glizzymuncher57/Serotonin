@@ -36,6 +36,7 @@ local ColorContainer = Main:Container("COLORS", "Server Info Theming", { autosiz
 local Enabled = VisualsContainer:Checkbox("Enabled")
 local HighlightGlobalBest = VisualsContainer:Checkbox("Highlight Best Brainrot")
 local ShowSelfPlot = VisualsContainer:Checkbox("Show Own Plot")
+local ShowServerInfo = VisualsContainer:Checkbox("Show Server Info")
 local DrawRunway = VisualsContainer:Checkbox("Draw Runway Brainrots")
 local PlotESPInfo = VisualsContainer:Multiselect("Plot ESP Details", { "Owner", "Time Remaining" })
 local PodiumESPInfo = VisualsContainer:Multiselect("Brainrot ESP Details", PodiumData)
@@ -60,6 +61,7 @@ for name, color in pairs(UIColors.Defaults) do
 		ColorContainer:Colorpicker(name, { r = color.R * 255, g = color.G * 255, b = color.B * 255 }, true)
 end
 
+local PriceFilter = SettingsContainer:SliderInt("Minimum Brainrot Generation ($M/s)", 0, 100, 0)
 local RaritySelection = SettingsContainer:Multiselect("Rarities to Show", Rarities)
 local FontSelection = SettingsContainer:Dropdown("Font Selection", FontCache, 1)
 local CacheMode = SettingsContainer:Dropdown("Cache Mode", { "Performance", "Performance Eater" }, 1)
@@ -437,55 +439,62 @@ cheat.Register("onPaint", function()
 		end
 
 		DrawPlotInfo(cached)
-		for _, brainrot in pairs(cached.CachedBrainrots) do
-			if cached ~= LocalPlayersPlot then
-				local gen = ParseGeneration(brainrot.Info.Generation)
-				if gen > GlobalBestGen then
-					GlobalBestGen, GlobalBestBrainrot = gen, brainrot
-				end
-			end
 
-			if owner ~= LocalPlayer.DisplayName or ShowSelfPlot:Get() then
-				DrawBrainrots(brainrot, false)
+		local MinGen = PriceFilter:Get() * 1e6
+		for _, brainrot in pairs(cached.CachedBrainrots) do
+			local gen = ParseGeneration(brainrot.Info.Generation)
+
+			if gen >= MinGen then
+				if cached ~= LocalPlayersPlot then
+					if gen > GlobalBestGen then
+						GlobalBestGen, GlobalBestBrainrot = gen, brainrot
+					end
+				end
+
+				if owner ~= LocalPlayer.DisplayName or ShowSelfPlot:Get() then
+					DrawBrainrots(brainrot, false)
+				end
 			end
 		end
 	end
 
-	local sw, _ = cheat.getWindowSize()
-	if ServerInfoPos.x == 0 then
-		ServerInfoPos.x = sw / 2 - 150
+	if ShowServerInfo:Get() then
+		local sw, _ = cheat.getWindowSize()
+		if ServerInfoPos.x == 0 then
+			ServerInfoPos.x = sw / 2 - 150
+		end
+
+		local infoItems = {
+			{
+				name = "Time Until Local Plot Unlock: "
+					.. (
+						LocalPlayersPlot
+							and LocalPlayersPlot.Time
+							and (LocalPlayersPlot.Time.Value == "0s" and "Unlocked" or LocalPlayersPlot.Time.Value)
+						or "Failed to find Local Plot"
+					),
+			},
+			{
+				name = "Time Until Closest Plot Unlock: "
+					.. (
+						ClosestPlot
+							and ClosestPlot.Time
+							and (ClosestPlot.Time.Value == "0s" and "Unlocked" or ClosestPlot.Time.Value)
+						or "No plots nearby."
+					),
+			},
+			{
+				name = "Best Brainrot: "
+					.. (
+						GlobalBestBrainrot
+							and ((GlobalBestBrainrot.Info.DisplayName or "Unknown") .. " (Gen: " .. (GlobalBestBrainrot.Info.Generation or "N/A") .. ")")
+						or "No brainrot found."
+					),
+			},
+		}
+
+		DrawServerInfoRelative(infoItems)
 	end
-
-	local infoItems = {
-		{
-			name = "Time Until Local Plot Unlock: "
-				.. (
-					LocalPlayersPlot
-						and LocalPlayersPlot.Time
-						and (LocalPlayersPlot.Time.Value == "0s" and "Unlocked" or LocalPlayersPlot.Time.Value)
-					or "Failed to find Local Plot"
-				),
-		},
-		{
-			name = "Time Until Closest Plot Unlock: "
-				.. (
-					ClosestPlot
-						and ClosestPlot.Time
-						and (ClosestPlot.Time.Value == "0s" and "Unlocked" or ClosestPlot.Time.Value)
-					or "No plots nearby."
-				),
-		},
-		{
-			name = "Best Brainrot: "
-				.. (
-					GlobalBestBrainrot
-						and ((GlobalBestBrainrot.Info.DisplayName or "Unknown") .. " (Gen: " .. (GlobalBestBrainrot.Info.Generation or "N/A") .. ")")
-					or "No brainrot found."
-				),
-		},
-	}
-
-	DrawServerInfoRelative(infoItems)
 
 	if TracerGlobalBest:Get() and GlobalBestBrainrot then
 		local BrSPx, BrSPy, OnScreen = utility.WorldToScreen(GlobalBestBrainrot.BestRenderPart.Position)
